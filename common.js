@@ -1,3 +1,53 @@
+const URL = "./";
+var startRace=0;
+let model, webcam, labelContainer, maxPredictions;
+
+// Load the image model and setup the webcam
+async function init() {
+    const modelURL = URL + "model.json";
+    const metadataURL = URL + "metadata.json";
+
+    // load the model and metadata
+    // Refer to tmImage.loadFromFiles() in the API to support files from a file picker
+    // or files from your local hard drive
+    // Note: the pose library adds "tmImage" object to your window (window.tmImage)
+    model = await tmImage.load(modelURL, metadataURL);
+    maxPredictions = model.getTotalClasses();
+
+    // Convenience function to setup a webcam
+    const flip = true; // whether to flip the webcam
+    webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
+    await webcam.setup(); // request access to the webcam
+    await webcam.play();
+    window.requestAnimationFrame(loop);
+
+    // append elements to the DOM
+    document.getElementById("webcam-container").appendChild(webcam.canvas);
+    labelContainer = document.getElementById("label-container");
+    for (let i = 0; i < maxPredictions; i++) { // and class labels
+        labelContainer.appendChild(document.createElement("div"));
+    }
+}
+
+async function loop() {
+    webcam.update(); // update the webcam frame
+    await predict();
+    window.requestAnimationFrame(loop);
+}
+var pred = [];
+// run the webcam image through the image model
+async function predict() {
+    // predict can take in an image, video or canvas html element
+    const prediction = await model.predict(webcam.canvas);
+    for (let i = 0; i < maxPredictions; i++) {
+        const classPrediction =
+            prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+        labelContainer.childNodes[i].innerHTML = classPrediction;
+    }
+    pred = prediction;
+    console.log();
+}
+
 //=========================================================================
 // minimalist DOM helpers
 //=========================================================================
@@ -118,6 +168,40 @@ var Game = {  // a modified version of the game loop from my previous boulderdas
           gdt    = 0;
 
       function frame() {
+        keys=options.keys;
+        var onkey = function(keyCode, mode) {
+          var n, k;
+          for(n = 0 ; n < keys.length ; n++) {
+            k = keys[n];
+            k.mode = k.mode || 'up';
+            if ((k.key == keyCode) || (k.keys && (k.keys.indexOf(keyCode) >= 0))) {
+              if (k.mode == mode) {
+                k.action.call();
+              }
+            }
+          }
+        };
+
+if(pred.length!=0){
+startRace=1;
+if(startRace==1) onkey(87, 'down');
+
+if(pred[0].probability>.8) {console.log("turn right")
+
+onkey(39, 'down');
+
+}
+
+else if(pred[1].probability>.8) {console.log("turn left")
+onkey(37, 'down');
+}
+
+else{
+  onkey(39, 'up');
+  onkey(37, 'up');
+}
+
+}
         now = Util.timestamp();
         dt  = Math.min(1, (now - last) / 1000); // using requestAnimationFrame have to be able to handle large delta's caused when it 'hibernates' in a background or non-visible tab
         gdt = gdt + dt;
@@ -169,8 +253,10 @@ var Game = {  // a modified version of the game loop from my previous boulderdas
         }
       }
     };
-    Dom.on(document, 'keydown', function(ev) { onkey(ev.keyCode, 'down'); } );
+    
+    Dom.on(document, 'keydown', function(ev) { onkey(ev.keyCode, 'down');console.log(ev.keyCode) } );
     Dom.on(document, 'keyup',   function(ev) { onkey(ev.keyCode, 'up');   } );
+    
   },
 
   //---------------------------------------------------------------------------
